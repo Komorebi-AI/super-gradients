@@ -1079,6 +1079,108 @@ class DetectionTargetsFormatTransform(DetectionTransform):
         return []
 
 
+@register_transform(Transforms.DetectionRandomSideCrop)
+class DetectionRandomSideCrop(DetectionTransform):
+    """Preprocessing transform to crop in width an image and bboxes from the border.
+    This is, the output image will have a width between `min_rel_width` and `max_rel_width` of the original image.
+    
+    Note: It assumes the targets are in (X,Y,X,Y,label) format.
+    """    
+
+    def __init__(self, min_rel_width:float = 0.3, max_rel_width: float = 0.6,  p_side_right: float = 0.5, prob: float = 1.0):
+        """_summary_
+
+        :param min_rel_width: minimum relative width of the resulting crop, defaults to 0.3
+        :param max_rel_width: maximum relative width of the resulting crop, defaults to 0.6
+        :param p_side_right: probability of keeping the right side when croping, defaults to 0.5
+        :param prob: probability of applying the transformation, defaults to 1.0
+        :raises AssertionError: Input parameters are not in the correct range
+        """     
+
+        assert 0 < min_rel_width <= 1, f"`min_rel_width` value must be between 0 (not included) and 1, found {min_rel_width}"
+        assert 0 <= max_rel_width <= 1, f"`max_rel_width` value must be between 0 and 1, found {max_rel_width}"
+        assert 0 <= prob <= 1, f"Probability value must be between 0 and 1, found {prob}"
+        assert 0 <= p_side_right <= 1, f"Probability of side value must be between 0 and 1, found {p_side_right}"
+        super(DetectionRandomSideCrop, self).__init__()
+        self.max_rel_width = max_rel_width
+        self.min_rel_width = min_rel_width
+        self.p_side_right = p_side_right
+        self.p = prob
+
+    def __call__(self, sample: dict[str, np.array]) ->  dict[str, np.array]:
+        if random.random() > self.p:
+            return sample
+
+        side = "right" if random.random() > self.p_side_right else "left"
+        random_rel_x = random.uniform(self.min_rel_width, self.max_rel_width)
+
+        image, targets = sample["image"], sample["target"]
+        bboxes = targets[:,:4]
+        
+        abs_x = min(int(random_rel_x * image.shape[1]),image.shape[1]-1)
+
+        if side == "left": 
+            abs_x = image.shape[1] - abs_x
+
+        sample["image"] = self._crop_image(image, abs_x, side)
+        boxes, kept_indices = self._crop_bboxes(bboxes, abs_x, side)
+        targets = targets[kept_indices]
+        targets[:,:4] = boxes
+        sample["target"] = targets
+      
+
+        if "crowd_target" in sample.keys():
+            crowd_targets = sample["crowd_target"]
+            boxes = crowd_targets.copy()
+            boxes, kept_indices = self._crop_bboxes(bboxes, abs_x, side)
+            targets = targets[kept_indices]
+            targets[:,:4] = boxes
+            sample["crowd_target"] = targets
+        
+        return sample
+    
+    def _crop_image(self, img: np.ndarray, abs_x: int, side: str) -> np.ndarray:
+        """Return the cropped image.
+
+        :param img: Numpy array of image
+        :param abx_x: Absolute value of the x coordinate to crop
+        :param side: Side of the resulting crop. Either "right" or "left"
+        :return: Numpy array of cropped image
+        """        
+        if side == "right":
+            output_img = img[:, abs_x:]
+        else:
+            output_img =  img[:, :abs_x]
+        return output_img
+        
+    def _crop_bboxes(self, bboxes: np.ndarray, abs_x: int, side:str) -> np.ndarray:
+        """Return the bboxes that are inside the crop. In the case of intersection, the bbox is cropped.
+
+        :param bboxes: Numpy array of bounding boxes in (X,Y,X,Y) format. Shape (N,4)
+        :param abx_x: Absolute value of the x coordinate to crop
+        :param side: Side of the resulting crop. Either "right" or "left"
+        :return: Numpy array of cropped bounding boxes in (X,Y,X,Y) format. Shape (N',4)
+        """
+
+        fixed_bboxes = []
+        kept_indices = []
+        if side == "right":
+            for i, bbox in enumerate(bboxes):
+                # bottom right corner is inside the crop (right side of the image)
+                if bbox[2] > abs_x:
+                    kept_indices.append(i)
+                    fixed_bboxes.append([max(bbox[0], abs_x) - abs_x, bbox[1], bbox[2] - abs_x, bbox[3]])
+        else:
+            for i, bbox in enumerate(bboxes):
+                # upper left corner is inside the crop (left side of the image)
+                if bbox[0] < abs_x:
+                    kept_indices.append(i)
+                    fixed_bboxes.append([bbox[0], bbox[1], min(bbox[2], abs_x), bbox[3]])
+
+        return np.array(fixed_bboxes).reshape((-1,4)), kept_indices
+    
+
+
 def get_aug_params(value: Union[tuple, float], center: float = 0) -> float:
     """
     Generates a random value for augmentations as described below
