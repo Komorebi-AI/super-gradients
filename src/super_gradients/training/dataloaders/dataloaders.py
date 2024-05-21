@@ -194,6 +194,27 @@ def coco2017_val_yolo_nas(dataset_params: Dict = None, dataloader_params: Dict =
         dataloader_params=dataloader_params,
     )
 
+@register_dataloader(Dataloaders.COCO_DETECTION_YOLO_FORMAT_TRAIN_CUSTOM)
+def coco_detection_yolo_format_train_custom(dataset_params: Dict = None, dataloader_params: Dict = None) -> DataLoader:
+    return get_data_loader(
+        config_name="coco_detection_yolo_format_base_dataset_params_custom",
+        dataset_cls=YoloDarknetFormatDetectionDataset,
+        train=True,
+        dataset_params=dataset_params,
+        dataloader_params=dataloader_params,
+    )
+
+
+@register_dataloader(Dataloaders.COCO_DETECTION_YOLO_FORMAT_VAL_CUSTOM)
+def coco_detection_yolo_format_val_custom(dataset_params: Dict = None, dataloader_params: Dict = None) -> DataLoader:
+    return get_data_loader(
+        config_name="coco_detection_yolo_format_base_dataset_params_custom",
+        dataset_cls=YoloDarknetFormatDetectionDataset,
+        train=False,
+        dataset_params=dataset_params,
+        dataloader_params=dataloader_params,
+    )
+
 
 @register_dataloader(Dataloaders.COCO2017_TRAIN_PPYOLOE)
 def coco2017_train_ppyoloe(dataset_params: Dict = None, dataloader_params: Dict = None) -> DataLoader:

@@ -126,6 +126,7 @@ class CustomizableDetector(SgModule):
         iou: Optional[float] = None,
         conf: Optional[float] = None,
     ) -> None:
+
         """Set the processing parameters for the dataset.
 
         :param class_names:     (Optional) Names of the dataset the model was trained on.
@@ -173,6 +174,7 @@ class CustomizableDetector(SgModule):
         :param fuse_model: If True, create a copy of the model, and fuse some of its layers to increase performance. This increases memory usage.
         """
         pipeline = self._get_pipeline(iou=iou, conf=conf, fuse_model=fuse_model)
+       
         return pipeline(images)  # type: ignore
 
     def predict_webcam(self, iou: Optional[float] = None, conf: Optional[float] = None, fuse_model: bool = True):
