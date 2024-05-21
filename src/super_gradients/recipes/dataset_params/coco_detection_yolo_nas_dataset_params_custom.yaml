@@ -6,11 +6,11 @@ train_dataset_params:
   cache_dir:
   cache: False
   transforms:
-    - DetectionRandomSideCrop:
-        min_rel_width : 0.3 
-        max_rel_width : 0.6 
-        p_side_right: 0.5
-        prob: 0.25
+    # - DetectionRandomSideCrop:
+    #     min_rel_width : 0.3 
+    #     max_rel_width : 0.6 
+    #     p_side_right: 0.5
+    #     prob: 0.25
     - DetectionRandomAffine:
         degrees: 0                    # rotation degrees, randomly sampled from [-degrees, degrees]
         translate: 0.25               # image translation fraction

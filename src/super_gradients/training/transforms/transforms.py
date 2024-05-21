@@ -27,6 +27,7 @@ from super_gradients.training.transforms.utils import (
     _pad_image,
     _shift_bboxes,
     _rescale_xyxy_bboxes,
+    _rescale_image_with_swap
 )
 
 IMAGE_RESAMPLE_MODE = Image.BILINEAR
@@ -755,6 +756,7 @@ class DetectionPadToSize(DetectionTransform):
         sample["target"] = _shift_bboxes(targets=targets, shift_w=padding_coordinates.left, shift_h=padding_coordinates.top)
         if crowd_targets is not None:
             sample["crowd_target"] = _shift_bboxes(targets=crowd_targets, shift_w=padding_coordinates.left, shift_h=padding_coordinates.top)
+        
         return sample
 
     def get_equivalent_preprocessing(self) -> List:
@@ -789,6 +791,8 @@ class DetectionPaddedRescale(DetectionTransform):
         sample["target"] = _rescale_xyxy_bboxes(targets, r)
         if crowd_targets is not None:
             sample["crowd_target"] = _rescale_xyxy_bboxes(crowd_targets, r)
+
+
         return sample
 
     def get_equivalent_preprocessing(self) -> List[Dict]:
@@ -797,6 +801,36 @@ class DetectionPaddedRescale(DetectionTransform):
             {Processings.DetectionBottomRightPadding: {"output_shape": self.input_dim, "pad_value": self.pad_value}},
             {Processings.ImagePermute: {"permutation": self.swap}},
         ]
+
+
+@register_transform(Transforms.DetectionRescale)
+class DetectionRescale(DetectionTransform):
+    """
+    Resize image and bounding boxes to given image dimensions without preserving aspect ratio
+
+    :param output_shape: (rows, cols)
+    """
+
+    def __init__(self, output_shape: Tuple[int, int], swap: Tuple[int, ...] = (2, 0, 1)):
+        # super().__init__()
+
+        self.output_shape = output_shape
+        self.swap = swap
+
+    def __call__(self, sample: dict) -> dict:
+        image, targets, crowd_targets = sample["image"], sample["target"], sample.get("crowd_target")
+
+        sy, sx = (self.output_shape[0] / image.shape[0], self.output_shape[1] / image.shape[1])
+        sample["image"] = _rescale_image_with_swap(image=image, target_shape=self.output_shape, swap = self.swap)
+        sample["target"] = _rescale_bboxes(targets, scale_factors=(sy, sx))
+
+        if crowd_targets is not None:
+            sample["crowd_target"] = _rescale_bboxes(crowd_targets, scale_factors=(sy, sx))
+        return sample
+
+    def get_equivalent_preprocessing(self) -> List[Dict]:
+        return [{Processings.DetectionRescale: {"output_shape": self.output_shape}},
+            {Processings.ImagePermute: {"permutation": self.swap}}]
 
 
 @register_transform(Transforms.DetectionHorizontalFlip)
@@ -824,33 +858,6 @@ class DetectionHorizontalFlip(DetectionTransform):
         sample["target"] = targets
         sample["image"] = image
         return sample
-
-
-@register_transform(Transforms.DetectionRescale)
-class DetectionRescale(DetectionTransform):
-    """
-    Resize image and bounding boxes to given image dimensions without preserving aspect ratio
-
-    :param output_shape: (rows, cols)
-    """
-
-    def __init__(self, output_shape: Tuple[int, int]):
-        super().__init__()
-        self.output_shape = output_shape
-
-    def __call__(self, sample: dict) -> dict:
-        image, targets, crowd_targets = sample["image"], sample["target"], sample.get("crowd_target")
-
-        sy, sx = (self.output_shape[0] / image.shape[0], self.output_shape[1] / image.shape[1])
-
-        sample["image"] = _rescale_image(image=image, target_shape=self.output_shape)
-        sample["target"] = _rescale_bboxes(targets, scale_factors=(sy, sx))
-        if crowd_targets is not None:
-            sample["crowd_target"] = _rescale_bboxes(crowd_targets, scale_factors=(sy, sx))
-        return sample
-
-    def get_equivalent_preprocessing(self) -> List[Dict]:
-        return [{Processings.DetectionRescale: {"output_shape": self.output_shape}}]
 
 
 @register_transform(Transforms.DetectionRandomRotate90)

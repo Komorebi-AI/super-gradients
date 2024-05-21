@@ -224,6 +224,23 @@ class _Rescale(Processing, ABC):
 
         return rescaled_image, RescaleMetadata(original_shape=image.shape[:2], scale_factor_h=scale_factor_h, scale_factor_w=scale_factor_w)
 
+class _RescaleWithSwap(Processing, ABC):
+    """Resize image to given image dimensions WITHOUT preserving aspect ratio.
+
+    :param output_shape: (H, W)
+    """
+
+    def __init__(self, output_shape: Tuple[int, int], swap):
+        self.output_shape = output_shape
+
+    def preprocess_image(self, image: np.ndarray) -> Tuple[np.ndarray, RescaleMetadata]:
+
+        scale_factor_h, scale_factor_w = self.output_shape[0] / image.shape[0], self.output_shape[1] / image.shape[1]
+        rescaled_image = _rescale_image_with_swap(image, target_shape=self.output_shape)
+
+        return rescaled_image, RescaleMetadata(original_shape=image.shape[:2], scale_factor_h=scale_factor_h, scale_factor_w=scale_factor_w)
+
+
 
 class _LongestMaxSizeRescale(Processing, ABC):
     """Resize image to given image dimensions WITH preserving aspect ratio.
@@ -249,7 +266,9 @@ class _LongestMaxSizeRescale(Processing, ABC):
 class DetectionRescale(_Rescale):
     def postprocess_predictions(self, predictions: DetectionPrediction, metadata: RescaleMetadata) -> DetectionPrediction:
         predictions.bboxes_xyxy = _rescale_bboxes(targets=predictions.bboxes_xyxy, scale_factors=(1 / metadata.scale_factor_h, 1 / metadata.scale_factor_w))
+
         return predictions
+
 
 
 @register_processing(Processings.DetectionLongestMaxSizeRescale)
